@@ -1,7 +1,7 @@
 /// Small, explicit configuration model for one llama.cpp server.
 module pkldocker.LlamaCpp
 
-import "package://github.com/faisal-memon/pkl-docker/releases/download/v0.0.3/pkl-docker@0.0.3#/src/Compose.pkl"
+import "@docker/src/Compose.pkl"
 
 /// Typed llama.cpp runtime settings rendered as `LLAMA_ARG_*` variables.
 class Runtime {
