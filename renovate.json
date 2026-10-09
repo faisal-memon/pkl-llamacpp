@@ -11,5 +11,13 @@
       "depNameTemplate": "ghcr.io/ggml-org/llama.cpp",
       "versioningTemplate": "loose"
     }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["ghcr.io/ggml-org/llama.cpp"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
   ]
 }
