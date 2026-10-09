@@ -3,6 +3,36 @@ module pkldocker.LlamaCpp
 
 import "package://github.com/faisal-memon/pkl-docker/releases/download/v0.0.3/pkl-docker@0.0.3#/src/Compose.pkl"
 
+/// Typed llama.cpp runtime settings rendered as `LLAMA_ARG_*` variables.
+class Runtime {
+  /// Model file path inside the container.
+  modelPath: String(!isEmpty)
+
+  /// Number of model layers placed on the GPU.
+  gpuLayers: Int = 0
+
+  /// Number of concurrent generation slots.
+  parallelism: Int = 1
+
+  flashAttention: Boolean = true
+  cacheTypeK: String(!isEmpty) = "q4_0"
+  cacheTypeV: String(!isEmpty) = "q4_0"
+  jinjaEnabled: Boolean = true
+  mmprojOffload: Boolean = false
+  contextSize: Int = 8192
+  contextShiftEnabled: Boolean = true
+  batchSize: Int = 512
+  ubatchSize: Int = 512
+  temperature: Float = 0.7
+  topP: Float = 0.95
+  topK: Int = 40
+  minP: Float = 0.0
+  repeatPenalty: Float = 1.0
+  enableThinking: Boolean = false
+  reasoningEnabled: Boolean = false
+  thinkBudget: Int = 0
+}
+
 /// A single llama.cpp server exposed through Docker Compose.
 class Server {
   /// Compose service name.
@@ -15,8 +45,8 @@ class Server {
   // renovate: datasource=docker depName=ghcr.io/ggml-org/llama.cpp
   imageTag: String(!isEmpty) = "server-cuda12-b11151"
 
-  /// Model file or model identifier passed to llama.cpp.
-  model: String(!isEmpty)
+  /// Typed runtime configuration for llama.cpp.
+  runtime: Runtime
 
   /// Host port for the OpenAI-compatible API.
   hostPort: Int
@@ -25,24 +55,62 @@ class Server {
   containerPort: Int = 8080
 
   restartPolicy: String? = "unless-stopped"
-  commandArgs: Listing<String> = new {}
   volumeMounts: Listing<String> = new {}
   networkNames: Listing<String> = new {}
-  environmentVars: Mapping<String, String> = new {}
   deviceMappings: Listing<String> = new {}
+
+  /// Reserve NVIDIA GPUs through Docker Compose.
+  gpuCount: String? = null
 
   hidden serviceImage = "\(image):\(imageTag)"
   hidden servicePort = "\(hostPort):\(containerPort)"
+  hidden runtimeEnvironment = new Mapping {
+    ["LLAMA_ARG_MODEL"] = runtime.modelPath
+    ["LLAMA_ARG_PORT"] = "\(containerPort)"
+    ["LLAMA_ARG_N_GPU_LAYERS"] = "\(runtime.gpuLayers)"
+    ["LLAMA_ARG_N_PARALLEL"] = "\(runtime.parallelism)"
+    ["LLAMA_ARG_FLASH_ATTN"] = if (runtime.flashAttention) "on" else "off"
+    ["LLAMA_ARG_CACHE_TYPE_K"] = runtime.cacheTypeK
+    ["LLAMA_ARG_CACHE_TYPE_V"] = runtime.cacheTypeV
+    ["LLAMA_ARG_JINJA"] = if (runtime.jinjaEnabled) "on" else "off"
+    ["LLAMA_ARG_MMPROJ_OFFLOAD"] = if (runtime.mmprojOffload) "1" else "0"
+    ["LLAMA_ARG_CTX_SIZE"] = "\(runtime.contextSize)"
+    ["LLAMA_ARG_NO_CONTEXT_SHIFT"] = if (runtime.contextShiftEnabled) "0" else "1"
+    ["LLAMA_ARG_BATCH_SIZE"] = "\(runtime.batchSize)"
+    ["LLAMA_ARG_UBATCH_SIZE"] = "\(runtime.ubatchSize)"
+    ["LLAMA_ARG_TEMP"] = "\(runtime.temperature)"
+    ["LLAMA_ARG_TOP_P"] = "\(runtime.topP)"
+    ["LLAMA_ARG_TOP_K"] = "\(runtime.topK)"
+    ["LLAMA_ARG_MIN_P"] = "\(runtime.minP)"
+    ["LLAMA_ARG_REPEAT_PENALTY"] = "\(runtime.repeatPenalty)"
+    ["LLAMA_ARG_CHAT_TEMPLATE_KWARGS"] = "{\"enable_thinking\":\(runtime.enableThinking)}"
+    ["LLAMA_ARG_REASONING"] = if (runtime.reasoningEnabled) "on" else "off"
+    ["LLAMA_ARG_THINK_BUDGET"] = "\(runtime.thinkBudget)"
+  }
 
   /// Convert this server to the generic Compose service model.
   composeService: Compose.Service = new Compose.Service {
     image = serviceImage
-    command = commandArgs
     restart = restartPolicy
     ports = new Listing { servicePort }
     volumes = volumeMounts
     networks = networkNames
-    environment = environmentVars
+    environment = runtimeEnvironment
     devices = deviceMappings
+    when (gpuCount != null) {
+      deploy = new Compose.Deploy {
+        resources = new Compose.Resources {
+          reservations = new Compose.Reservations {
+            devices = new Listing {
+              new Compose.Device {
+                driver = "nvidia"
+                count = gpuCount
+                capabilities = new Listing { "gpu" }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
