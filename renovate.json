@@ -1,0 +1,15 @@
+{
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["(^|/)src/.*\\.pkl$", "(^|/)examples/.*\\.pkl$"],
+      "matchStrings": [
+        "imageTag: String\\([^\\n]+\\) = \\\"(?<currentValue>server-cuda12-b\\d+)\\\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/ggml-org/llama.cpp",
+      "versioningTemplate": "loose"
+    }
+  ]
+}
