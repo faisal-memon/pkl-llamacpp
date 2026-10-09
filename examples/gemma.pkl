@@ -1,7 +1,7 @@
 /// Minimal llama.cpp chat server example.
-amends "package://github.com/faisal-memon/pkl-docker/releases/download/v0.0.3/pkl-docker@0.0.3#/src/ComposeRender.pkl"
+amends "@docker/src/ComposeRender.pkl"
 
-import "package://github.com/faisal-memon/pkl-docker/releases/download/v0.0.3/pkl-docker@0.0.3#/src/Compose.pkl"
+import "@docker/src/Compose.pkl"
 import "../src/LlamaCpp.pkl"
 
 local gemma = new LlamaCpp.Server {
