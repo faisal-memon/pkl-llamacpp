@@ -11,8 +11,9 @@ class Server {
   /// Container image repository.
   image: String(!isEmpty) = "ghcr.io/ggml-org/llama.cpp"
 
-  /// llama.cpp image tag, such as `server` or `server-cuda`.
-  imageTag: String(!isEmpty) = "server"
+  /// llama.cpp image tag, such as `server` or a versioned CUDA build.
+  // renovate: datasource=docker depName=ghcr.io/ggml-org/llama.cpp
+  imageTag: String(!isEmpty) = "server-cuda12-b11151"
 
   /// Model file or model identifier passed to llama.cpp.
   model: String(!isEmpty)
