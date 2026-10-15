@@ -1,7 +1,7 @@
 /// Render llama.cpp settings with the shared Docker Compose renderer.
 module llamacpp.DockerComposeRender
 
-amends "@docker/src/ComposeRender.pkl"
+amends "package://github.com/faisal-memon/pkl-docker/releases/download/v0.0.10/pkl-docker@0.0.10#/src/Compose.pkl"
 import "../LlamaCpp.pkl"
 
 config = new ComposeRender {}
