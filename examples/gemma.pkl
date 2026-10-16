@@ -1,21 +1,10 @@
 /// Minimal llama.cpp chat server example.
-amends "@docker/src/Compose.pkl"
+amends "../src/LlamaCpp.pkl"
 
-import "@docker/src/Compose.pkl" as Compose
-import "../src/LlamaCpp.pkl" as LlamaCpp
-
-local gemma = new LlamaCpp.Server {
-  name = "llamacpp-main"
-  hostPort = 8002
-  gpuCount = "all"
-  volumeMounts = new Listing { new LlamaCpp.VolumeMount { hostPath = "./data/models"; containerPath = "/models"; readOnly = true } }
-  networkNames = new Listing { "ai_net"; "shared_net"; "mcp_net" }
-  runtime = new LlamaCpp.Runtime {
+config = new Config {
+  llamacpp {
     modelPath = "/models/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
     gpuLayers = 99
-    flashAttention = true
-    cacheTypeK = "q4_0"
-    cacheTypeV = "q4_0"
     contextSize = 131072
     contextShiftEnabled = false
     batchSize = 1024
@@ -25,13 +14,16 @@ local gemma = new LlamaCpp.Server {
     reasoningEnabled = true
     thinkBudget = 2048
   }
-}
-
-services = new Mapping {
-  [gemma.name] = gemma.composeService
-}
-networks = new Mapping {
-  ["ai_net"] = new Compose.Network { `external` = true }
-  ["shared_net"] = new Compose.Network { `external` = true }
-  ["mcp_net"] = new Compose.Network { `external` = true }
+  docker {
+    name = "llamacpp-main"
+    hostPort = 8002
+    hostModelDirectory = "./data/models"
+    modelFile = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+    gpuCount = "all"
+    networks {
+      ["ai_net"] = new NetworkConfig { `external` = true }
+      ["shared_net"] = new NetworkConfig { `external` = true }
+      ["mcp_net"] = new NetworkConfig { `external` = true }
+    }
+  }
 }
