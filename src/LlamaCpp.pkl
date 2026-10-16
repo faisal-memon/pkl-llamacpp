@@ -1,19 +1,29 @@
-/// Small, explicit configuration model for one llama.cpp server.
+/// A typed llama.cpp server rendered as Docker Compose YAML.
 module pkldocker.LlamaCpp
 
 import "@docker/src/Compose.pkl"
 
-/// Typed llama.cpp runtime settings rendered as `LLAMA_ARG_*` variables.
-class Runtime {
-  /// Model file path inside the container.
-  modelPath: String(!isEmpty)
+// ── Module configuration ─────────────────────────────────────────────────────
 
-  /// Number of model layers placed on the GPU.
+/// Llama.cpp configuration supplied by the consumer.
+config: Config = new Config {}
+
+// ── Configuration types ──────────────────────────────────────────────────────
+
+/// Combined llama.cpp application and Docker settings.
+class Config {
+  /// Llama.cpp runtime settings.
+  llamacpp: LlamaCppConfig = new LlamaCppConfig {}
+
+  /// Docker deployment settings.
+  docker: DockerConfig = new DockerConfig {}
+}
+
+/// Llama.cpp runtime settings.
+class LlamaCppConfig {
+  modelPath: String(!isEmpty) = "/models/model.gguf"
   gpuLayers: Int = 0
-
-  /// Number of concurrent generation slots.
   parallelism: Int = 1
-
   flashAttention: Boolean = true
   cacheTypeK: String(!isEmpty) = "q4_0"
   cacheTypeV: String(!isEmpty) = "q4_0"
@@ -33,90 +43,78 @@ class Runtime {
   thinkBudget: Int = 0
 }
 
-  /// A host-to-container model volume.
-  class VolumeMount {
-    hostPath: String(!isEmpty)
-    containerPath: String(!isEmpty)
-    readOnly: Boolean = false
-  }
-
-/// A single llama.cpp server exposed through Docker Compose.
-class Server {
-  /// Compose service name.
-  name: String(!isEmpty)
-
-  /// Container image repository.
+/// Docker deployment settings.
+class DockerConfig {
+  name: String(!isEmpty) = "llamacpp"
   image: String(!isEmpty) = "ghcr.io/ggml-org/llama.cpp"
-
-  /// llama.cpp image tag, such as `server` or a versioned CUDA build.
   // renovate: datasource=docker depName=ghcr.io/ggml-org/llama.cpp
   imageTag: String(!isEmpty) = "server-cuda12-b11151"
-
-  /// Typed runtime configuration for llama.cpp.
-  runtime: Runtime
-
-  /// Host port for the OpenAI-compatible API.
-  hostPort: Int
-
-  /// Container port for the OpenAI-compatible API.
-  containerPort: Int = 8080
-
-  restartPolicy: String? = "unless-stopped"
-  volumeMounts: Listing<VolumeMount> = new {}
-  networkNames: Listing<String> = new {}
-  deviceMappings: Listing<String> = new {}
-
-  /// Reserve NVIDIA GPUs through Docker Compose.
+  hostPort: Int(isBetween(1, 65535)) = 8080
+  containerPort: Int(isBetween(1, 65535)) = 8080
+  hostModelDirectory: String(!isEmpty) = "./data/models"
+  modelFile: String(!isEmpty) = "model.gguf"
+  networks: Mapping<String, NetworkConfig> = new {}
   gpuCount: String? = null
+  restartPolicy: String? = "unless-stopped"
+  hidden imageReference = "\(image):\(imageTag)"
+}
 
-  hidden serviceImage = "\(image):\(imageTag)"
-  hidden runtimeEnvironment = new Mapping {
-    ["LLAMA_ARG_MODEL"] = runtime.modelPath
-    ["LLAMA_ARG_PORT"] = "\(containerPort)"
-    ["LLAMA_ARG_N_GPU_LAYERS"] = "\(runtime.gpuLayers)"
-    ["LLAMA_ARG_N_PARALLEL"] = "\(runtime.parallelism)"
-    ["LLAMA_ARG_FLASH_ATTN"] = if (runtime.flashAttention) "on" else "off"
-    ["LLAMA_ARG_CACHE_TYPE_K"] = runtime.cacheTypeK
-    ["LLAMA_ARG_CACHE_TYPE_V"] = runtime.cacheTypeV
-    ["LLAMA_ARG_JINJA"] = if (runtime.jinjaEnabled) "on" else "off"
-    ["LLAMA_ARG_MMPROJ_OFFLOAD"] = if (runtime.mmprojOffload) "1" else "0"
-    ["LLAMA_ARG_CTX_SIZE"] = "\(runtime.contextSize)"
-    ["LLAMA_ARG_NO_CONTEXT_SHIFT"] = if (runtime.contextShiftEnabled) "0" else "1"
-    ["LLAMA_ARG_BATCH_SIZE"] = "\(runtime.batchSize)"
-    ["LLAMA_ARG_UBATCH_SIZE"] = "\(runtime.ubatchSize)"
-    ["LLAMA_ARG_TEMP"] = "\(runtime.temperature)"
-    ["LLAMA_ARG_TOP_P"] = "\(runtime.topP)"
-    ["LLAMA_ARG_TOP_K"] = "\(runtime.topK)"
-    ["LLAMA_ARG_MIN_P"] = "\(runtime.minP)"
-    ["LLAMA_ARG_REPEAT_PENALTY"] = "\(runtime.repeatPenalty)"
-    ["LLAMA_ARG_CHAT_TEMPLATE_KWARGS"] = "{\"enable_thinking\":\(runtime.enableThinking)}"
-    ["LLAMA_ARG_REASONING"] = if (runtime.reasoningEnabled) "on" else "off"
-    ["LLAMA_ARG_THINK_BUDGET"] = "\(runtime.thinkBudget)"
-  }
+/// Consumer-facing network settings.
+class NetworkConfig {
+  `external`: Boolean = false
+}
 
-  /// Convert this server to the generic Compose service model.
-  composeService: Compose.Service = new Compose.Service {
-    image = serviceImage
-    restart = restartPolicy
-    ports = new Listing { new Compose.Port { published = hostPort; target = containerPort } }
-    volumes = new Listing { for (mount in volumeMounts) { new Compose.Volume { source = mount.hostPath; target = mount.containerPath; `read_only` = mount.readOnly } } }
-    networks = networkNames
+// ── Compose service ──────────────────────────────────────────────────────────
+
+local modelMount = "/models"
+local serviceModelPath = "\(modelMount)/\(config.docker.modelFile)"
+local runtimeEnvironment = new Mapping {
+  ["LLAMA_ARG_MODEL"] = serviceModelPath
+  ["LLAMA_ARG_PORT"] = "\(config.docker.containerPort)"
+  ["LLAMA_ARG_N_GPU_LAYERS"] = "\(config.llamacpp.gpuLayers)"
+  ["LLAMA_ARG_N_PARALLEL"] = "\(config.llamacpp.parallelism)"
+  ["LLAMA_ARG_FLASH_ATTN"] = if (config.llamacpp.flashAttention) "on" else "off"
+  ["LLAMA_ARG_CACHE_TYPE_K"] = config.llamacpp.cacheTypeK
+  ["LLAMA_ARG_CACHE_TYPE_V"] = config.llamacpp.cacheTypeV
+  ["LLAMA_ARG_JINJA"] = if (config.llamacpp.jinjaEnabled) "on" else "off"
+  ["LLAMA_ARG_MMPROJ_OFFLOAD"] = if (config.llamacpp.mmprojOffload) "1" else "0"
+  ["LLAMA_ARG_CTX_SIZE"] = "\(config.llamacpp.contextSize)"
+  ["LLAMA_ARG_NO_CONTEXT_SHIFT"] = if (config.llamacpp.contextShiftEnabled) "0" else "1"
+  ["LLAMA_ARG_BATCH_SIZE"] = "\(config.llamacpp.batchSize)"
+  ["LLAMA_ARG_UBATCH_SIZE"] = "\(config.llamacpp.ubatchSize)"
+  ["LLAMA_ARG_TEMP"] = "\(config.llamacpp.temperature)"
+  ["LLAMA_ARG_TOP_P"] = "\(config.llamacpp.topP)"
+  ["LLAMA_ARG_TOP_K"] = "\(config.llamacpp.topK)"
+  ["LLAMA_ARG_MIN_P"] = "\(config.llamacpp.minP)"
+  ["LLAMA_ARG_REPEAT_PENALTY"] = "\(config.llamacpp.repeatPenalty)"
+  ["LLAMA_ARG_CHAT_TEMPLATE_KWARGS"] = "{\"enable_thinking\":\(config.llamacpp.enableThinking)}"
+  ["LLAMA_ARG_REASONING"] = if (config.llamacpp.reasoningEnabled) "on" else "off"
+  ["LLAMA_ARG_THINK_BUDGET"] = "\(config.llamacpp.thinkBudget)"
+}
+
+services = new Mapping {
+  [config.docker.name] = new Compose.Service {
+    image = config.docker.imageReference
+    restart = config.docker.restartPolicy
+    ports = new Listing { new Compose.Port { published = config.docker.hostPort; target = config.docker.containerPort } }
+    volumes = new Listing { new Compose.Volume { source = config.docker.hostModelDirectory; target = modelMount; `read_only` = true } }
+    networks = new Listing { for (network in config.docker.networks.keys) { network } }
     environment = runtimeEnvironment
-    devices = deviceMappings
-    when (gpuCount != null) {
-      deploy = new Compose.Deploy {
-        resources = new Compose.Resources {
-          reservations = new Compose.Reservations {
-            devices = new Listing {
-              new Compose.Device {
-                driver = "nvidia"
-                count = gpuCount
-                capabilities = new Listing { "gpu" }
-              }
-            }
-          }
-        }
-      }
+    when (config.docker.gpuCount != null) {
+      deploy = new Compose.Deploy { resources = new Compose.Resources { reservations = new Compose.Reservations { devices = new Listing { new Compose.Device { driver = "nvidia"; count = config.docker.gpuCount; capabilities = new Listing { "gpu" } } } } } }
     }
   }
+}
+
+networks = new Mapping {
+  for (name, network in config.docker.networks) {
+    [name] = new Compose.Network { `external` = network.`external` }
+  }
+}
+
+// ── YAML output ──────────────────────────────────────────────────────────────
+
+output {
+  value = new Dynamic { services = module.services; networks = module.networks }
+  renderer = new YamlRenderer {}
 }
