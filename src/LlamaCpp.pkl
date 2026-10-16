@@ -33,6 +33,13 @@ class Runtime {
   thinkBudget: Int = 0
 }
 
+  /// A host-to-container model volume.
+  class VolumeMount {
+    hostPath: String(!isEmpty)
+    containerPath: String(!isEmpty)
+    readOnly: Boolean = false
+  }
+
 /// A single llama.cpp server exposed through Docker Compose.
 class Server {
   /// Compose service name.
@@ -55,7 +62,7 @@ class Server {
   containerPort: Int = 8080
 
   restartPolicy: String? = "unless-stopped"
-  volumeMounts: Listing<String> = new {}
+  volumeMounts: Listing<VolumeMount> = new {}
   networkNames: Listing<String> = new {}
   deviceMappings: Listing<String> = new {}
 
@@ -63,7 +70,6 @@ class Server {
   gpuCount: String? = null
 
   hidden serviceImage = "\(image):\(imageTag)"
-  hidden servicePort = "\(hostPort):\(containerPort)"
   hidden runtimeEnvironment = new Mapping {
     ["LLAMA_ARG_MODEL"] = runtime.modelPath
     ["LLAMA_ARG_PORT"] = "\(containerPort)"
@@ -92,8 +98,8 @@ class Server {
   composeService: Compose.Service = new Compose.Service {
     image = serviceImage
     restart = restartPolicy
-    ports = new Listing { servicePort }
-    volumes = volumeMounts
+    ports = new Listing { new Compose.Port { published = hostPort; target = containerPort } }
+    volumes = new Listing { for (mount in volumeMounts) { new Compose.Volume { source = mount.hostPath; target = mount.containerPath; `read_only` = mount.readOnly } } }
     networks = networkNames
     environment = runtimeEnvironment
     devices = deviceMappings
