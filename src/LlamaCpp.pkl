@@ -30,6 +30,7 @@ class LlamaCppConfig {
   jinjaEnabled: Boolean = true
   mmprojOffload: Boolean = false
   contextSize: Int = 8192
+  embeddingsEnabled: Boolean = false
   contextShiftEnabled: Boolean = true
   batchSize: Int = 512
   ubatchSize: Int = 512
@@ -70,6 +71,7 @@ local modelMount = "/models"
 local serviceModelPath = "\(modelMount)/\(config.docker.modelFile)"
 local runtimeEnvironment = new Mapping {
   ["LLAMA_ARG_MODEL"] = serviceModelPath
+  ["LLAMA_ARG_EMBEDDINGS"] = if (config.llamacpp.embeddingsEnabled) "1" else "0"
   ["LLAMA_ARG_PORT"] = "\(config.docker.containerPort)"
   ["LLAMA_ARG_N_GPU_LAYERS"] = "\(config.llamacpp.gpuLayers)"
   ["LLAMA_ARG_N_PARALLEL"] = "\(config.llamacpp.parallelism)"
