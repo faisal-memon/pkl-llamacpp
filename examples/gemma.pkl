@@ -4,6 +4,8 @@ amends "../src/LlamaCpp.pkl"
 config = new Config {
   llamacpp {
     modelPath = "/models/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+    mmprojUrl = "https://huggingface.co/ggml-org/gemma-4-26B-A4B-it-GGUF/resolve/9cf8c8db0f83fb4582f15381f8fb1a7c1b0b9ca2/mmproj-gemma-4-26B-A4B-it-Q8_0.gguf"
+    mmprojOffload = false
     gpuLayers = 99
     contextSize = 131072
     contextShiftEnabled = false
