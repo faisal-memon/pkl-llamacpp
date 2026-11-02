@@ -22,6 +22,10 @@ class Config {
 /// Llama.cpp runtime settings.
 class LlamaCppConfig {
   modelPath: String(!isEmpty) = "/models/model.gguf"
+  /// Local multimodal projector file path inside the container, when used.
+  mmprojPath: String? = null
+  /// URL from which llama.cpp downloads the multimodal projector at startup, when used.
+  mmprojUrl: String? = null
   gpuLayers: Int = 0
   parallelism: Int = 1
   flashAttention: Boolean = true
@@ -69,7 +73,7 @@ class NetworkConfig {
 
 local modelMount = "/models"
 local serviceModelPath = "\(modelMount)/\(config.docker.modelFile)"
-local runtimeEnvironment = new Mapping {
+local runtimeEnvironment = if (config.llamacpp.mmprojPath != null && config.llamacpp.mmprojUrl != null) throw("Set at most one of llamacpp.mmprojPath and llamacpp.mmprojUrl.") else new Mapping {
   ["LLAMA_ARG_MODEL"] = serviceModelPath
   ["LLAMA_ARG_EMBEDDINGS"] = if (config.llamacpp.embeddingsEnabled) "1" else "0"
   ["LLAMA_ARG_PORT"] = "\(config.docker.containerPort)"
@@ -79,6 +83,12 @@ local runtimeEnvironment = new Mapping {
   ["LLAMA_ARG_CACHE_TYPE_K"] = config.llamacpp.cacheTypeK
   ["LLAMA_ARG_CACHE_TYPE_V"] = config.llamacpp.cacheTypeV
   ["LLAMA_ARG_JINJA"] = if (config.llamacpp.jinjaEnabled) "on" else "off"
+  when (config.llamacpp.mmprojPath != null) {
+    ["LLAMA_ARG_MMPROJ"] = config.llamacpp.mmprojPath!!
+  }
+  when (config.llamacpp.mmprojUrl != null) {
+    ["LLAMA_ARG_MMPROJ_URL"] = config.llamacpp.mmprojUrl!!
+  }
   ["LLAMA_ARG_MMPROJ_OFFLOAD"] = if (config.llamacpp.mmprojOffload) "1" else "0"
   ["LLAMA_ARG_CTX_SIZE"] = "\(config.llamacpp.contextSize)"
   ["LLAMA_ARG_NO_CONTEXT_SHIFT"] = if (config.llamacpp.contextShiftEnabled) "0" else "1"
